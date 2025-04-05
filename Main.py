@@ -1,46 +1,42 @@
 import mongoengine
 from mongoengine import Document, StringField
 from fastapi import FastAPI, File, UploadFile
+from fastapi.responses import JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
 import base64
 
-# Connect to MongoDB
-mongoengine.connect("classroom", host="mongodb://localhost:27017/Video")
+mongoengine.connect("classroom", host="mongodb+srv://naveen:Naveen1122@cluster0.pghl7v8.mongodb.net/")
 
 app = FastAPI()
 
-def image_to_base64(file):
-    return base64.b64encode(file.read()).decode("utf-8")
+# Enable CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
-class Video(Document):
+class Images(Document):
     title = StringField(required=True, unique=True)
-    file_base64 = StringField(required=True)
-
-    meta = {"collection": "Videos"}
-
-
-@app.post("/upload_video")
-async def upload_video(title: str, file: UploadFile = File(...)):
-    file_base64 = image_to_base64(file.file)
-
-    existing_video = Video.objects(title=title).first()
-    if existing_video:
-        return {"error": "A video with this title already exists!"}
-
-    # Save to MongoDB
-    video = Video(title=title, file_base64=file_base64)
-    video.save()
-
-    return {"message": "Video uploaded successfully", "title": title}
+    image_data = StringField(required=True)
+    meta = {"collection": "Images"}
 
 
-@app.get("/get_video")
-def get_video():
-    videos = Video.objects()
+@app.post("/upload_images")
+async def upload_images(title: str, file: UploadFile = File(...)):
+    content = await file.read()
+    base64_encoded = base64.b64encode(content).decode("utf-8")
 
-    if not videos:
-        return {"error": "No videos found"}
+    Images(title=title, image_data=base64_encoded).save()
 
-    result = [{"title": video.title, "file_base64": video.file_base64} for video in videos]
+    return JSONResponse(content={"message": "Image uploaded successfully", "title": title})
 
-    return {"videos": result}
+
+@app.get("/get_images")
+async def get_images():
+    images = Images.objects()
+    image_list = [{"title": img.title, "base64": img.image_data} for img in images]
+    return JSONResponse(content={"images": image_list})
